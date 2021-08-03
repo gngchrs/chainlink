@@ -22,6 +22,7 @@ import (
 	gormpostgres "gorm.io/driver/postgres"
 
 	"go.uber.org/multierr"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/pkg/errors"
 
@@ -43,7 +44,6 @@ import (
 	gethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	clipkg "github.com/urfave/cli"
-	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
 )
 
@@ -52,16 +52,18 @@ const ownerPermsMask = os.FileMode(0700)
 
 // RunNode starts the Chainlink core.
 func (cli *Client) RunNode(c *clipkg.Context) error {
-	err := cli.Config.Validate()
-	if err != nil {
-		return cli.errorOut(err)
-	}
-
-	err = cli.Config.SetLogLevel(context.Background(), zapcore.DebugLevel.String())
+	updateConfig(cli.Config, c.Bool("debug"), c.Int64("replay-from-block"))
+	err := cli.Config.SetLogLevel(context.Background(), zapcore.DebugLevel.String())
 	if err != nil {
 		return cli.errorOut(err)
 	}
 	logger.SetLogger(cli.Config.CreateProductionLogger())
+
+	err = cli.Config.Validate()
+	if err != nil {
+		return cli.errorOut(err)
+	}
+
 	logger.Infow(fmt.Sprintf("Starting Chainlink Node %s at commit %s", static.Version, static.Sha), "id", "boot", "Version", static.Version, "SHA", static.Sha, "InstanceUUID", static.InstanceUUID)
 	if cli.Config.Dev() {
 		logger.Warn("Chainlink is running in DEVELOPMENT mode. This is a security risk if enabled in production.")

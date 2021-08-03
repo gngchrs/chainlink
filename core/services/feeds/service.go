@@ -149,6 +149,8 @@ func (s *service) SyncNodeInfo(id int64) error {
 		return errors.Wrap(err, "could not fetch client")
 	}
 
+	// TODO: Update to support multiple chains
+	// See: https://app.clubhouse.io/chainlinklabs/story/14615/add-ability-to-set-chain-id-in-all-pipeline-tasks-that-interact-with-evm
 	_, err = fmsClient.UpdateNode(context.Background(), &pb.UpdateNodeRequest{
 		JobTypes:           jobtypes,
 		ChainId:            s.cfg.ChainID().Int64(),
