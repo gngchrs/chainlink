@@ -14,6 +14,18 @@ VALUES
     DECODE('1bd910cb46ffce56ebd59721e406bd4e7e76f9d0561352703bacc18e165af174','hex')
 );
 
+INSERT INTO "public"."encrypted_ocr2_key_bundles"("id","onchain_public_key","onchain_signing_address","offchain_signing_public_key","offchain_encryption_public_key","encrypted_private_keys","created_at","updated_at")
+VALUES
+(
+    DECODE('b0d6de2a01eb2d66b4db2cac7d4aea47c701612a1d0dc892fc59e8e9068b23f6','hex'),
+    DECODE('04e951b640045c44cee804b15c5f9d6b9520b50414eb56a33f695f4385032a43fb2240887ce0ea3189bbe185dc28a2e87bfe34ca1bcac115be6259e67905ff2392','hex'),
+    DECODE('61f71811e34b5dd891fcb30f8f96855bab9ddafc','hex'),
+    DECODE('86c21ddb98a74d779102bd688dd0022839397644286a7d308f096d2320c104f9','hex'),
+    DECODE('b5263c71618e298b6798f9a6849f805b54ae3570fbe5d989ef8eb89e20e9d2f9','hex'),
+    E'{"kdf": "scrypt", "mac": "98b0908288bc48c0b128dd995a5e780de4164526c13e47ad879751f07fedb98b", "cipher": "aes-128-ctr", "kdfparams": {"n": 2, "p": 1, "r": 8, "salt": "e67a937f07069c118c41ba546b71a505ac418360af4b39d51a0a1bfa5a4401c5", "dklen": 32}, "ciphertext": "d728556f4556937bf24bff67b571ca91bf90d7d1b78ec841b0cc999fac2ecb2bed20c8494c05ed90c4a35677a327689c64d8d913182d33e865ecd20c90d835dc18359c482e4dad9d9fc771cfb97c6dbf30c7937a13a2f99a1f3f54360b5a805d93066ae479597983b67be61a18c70be2903f4fbe1efede28d0705dcf7cf6a9f29170fb63aee87fb34b879d709483a705810ebb553c784af9164d272bf17fb4330522184bf368892a218ec92e0063ea35e332053ad62c2db0678f9bdeb458c510fc0f82a884320ac6856a1962f177bdd1efda838fccb0124e564186beb259f0b0561f9b71e6999956307274f34930f1b8afd2d7a4e8ce621f867e14eb446d9dc5145a", "cipherparams": {"iv": "8c94c6c0aa0fa2821f29e32b9f21a97a"}}',
+    E'2021-08-06 17:40:05.219808+00',
+    E'2021-08-06 17:40:05.219808+00'
+);
 
 INSERT INTO "public"."encrypted_p2p_keys"("peer_id","pub_key","encrypted_priv_key","created_at","updated_at")
 VALUES

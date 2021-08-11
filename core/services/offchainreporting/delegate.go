@@ -25,6 +25,7 @@ import (
 	"github.com/smartcontractkit/chainlink/core/services/pipeline"
 	"github.com/smartcontractkit/chainlink/core/services/telemetry"
 	"github.com/smartcontractkit/chainlink/core/store/models"
+	ocrcommontypes "github.com/smartcontractkit/libocr/commontypes"
 	"github.com/smartcontractkit/libocr/gethwrappers/offchainaggregator"
 	ocr "github.com/smartcontractkit/libocr/offchainreporting"
 	ocrtypes "github.com/smartcontractkit/libocr/offchainreporting/types"
@@ -50,7 +51,7 @@ type DelegateConfig interface {
 	OCRTransmitterAddress(*ethkey.EIP55Address) (ethkey.EIP55Address, error)
 	P2PBootstrapPeers([]string) ([]string, error)
 	P2PPeerID(*p2pkey.PeerID) (p2pkey.PeerID, error)
-	P2PV2Bootstrappers() []ocrtypes.BootstrapperLocator
+	P2PV2Bootstrappers() []ocrcommontypes.BootstrapperLocator
 }
 
 type Delegate struct {
@@ -197,14 +198,16 @@ func (d Delegate) ServicesForSpec(jobSpec job.Job) (services []job.Service, err 
 	logger.Info(fmt.Sprintf("OCR job using local config %+v", lc))
 
 	if concreteSpec.IsBootstrapPeer {
-		bootstrapper, err := ocr.NewBootstrapNode(ocr.BootstrapNodeArgs{
+		bootstrapNodeArgs := ocr.BootstrapNodeArgs{
 			BootstrapperFactory:   peerWrapper.Peer,
 			V1Bootstrappers:       bootstrapPeers,
 			ContractConfigTracker: tracker,
 			Database:              ocrdb,
 			LocalConfig:           lc,
 			Logger:                ocrLogger,
-		})
+		}
+		logger.Debugw("Launching new bootstrap node", "args", bootstrapNodeArgs)
+		bootstrapper, err := ocr.NewBootstrapNode(bootstrapNodeArgs)
 		if err != nil {
 			return nil, errors.Wrap(err, "error calling NewBootstrapNode")
 		}

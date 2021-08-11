@@ -1,6 +1,7 @@
 package offchainreporting
 
 import (
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/smartcontractkit/chainlink/core/services/keystore/keys/p2pkey"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/utils"
+	ocrcommontypes "github.com/smartcontractkit/libocr/commontypes"
 	ocrnetworking "github.com/smartcontractkit/libocr/networking"
 	ocrtypes "github.com/smartcontractkit/libocr/offchainreporting/types"
 	"go.uber.org/multierr"
@@ -35,7 +37,7 @@ type NetworkingConfig interface {
 	P2PPeerID(override *p2pkey.PeerID) (p2pkey.PeerID, error)
 	P2PPeerstoreWriteInterval() time.Duration
 	P2PV2AnnounceAddresses() []string
-	P2PV2Bootstrappers() []ocrtypes.BootstrapperLocator
+	P2PV2Bootstrappers() []ocrcommontypes.BootstrapperLocator
 	P2PV2DeltaDial() models.Duration
 	P2PV2DeltaReconcile() models.Duration
 	P2PV2ListenAddresses() []string
@@ -46,6 +48,12 @@ type (
 		ocrtypes.BootstrapperFactory
 		ocrtypes.BinaryNetworkEndpointFactory
 		Close() error
+	}
+
+	peerAdapter struct {
+		io.Closer
+		ocrtypes.BinaryNetworkEndpointFactory
+		ocrtypes.BootstrapperFactory
 	}
 
 	// SingletonPeerWrapper manages all libocr peers for the application
@@ -142,7 +150,7 @@ func (p *SingletonPeerWrapper) Start() error {
 
 		peerLogger := NewLogger(logger.Default, p.config.OCRTraceLogging(), func(string) {})
 
-		p.Peer, err = ocrnetworking.NewPeer(ocrnetworking.PeerConfig{
+		peer, err := ocrnetworking.NewPeer(ocrnetworking.PeerConfig{
 			NetworkingStack:      p.config.P2PNetworkingStack(),
 			PrivKey:              key.PrivKey,
 			V1ListenIP:           p.config.P2PListenIP(),
@@ -167,6 +175,11 @@ func (p *SingletonPeerWrapper) Start() error {
 		})
 		if err != nil {
 			return errors.Wrap(err, "error calling NewPeer")
+		}
+		p.Peer = peerAdapter{
+			peer,
+			peer.OCRBinaryNetworkEndpointFactory(),
+			peer.OCRBootstrapperFactory(),
 		}
 		return p.pstoreWrapper.Start()
 	})

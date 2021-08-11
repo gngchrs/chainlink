@@ -19,6 +19,7 @@ import (
 	"github.com/smartcontractkit/chainlink/core/store/dialects"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/utils"
+	"github.com/smartcontractkit/libocr/commontypes"
 	"github.com/stretchr/testify/require"
 	null "gopkg.in/guregu/null.v4"
 )
@@ -70,6 +71,18 @@ type GeneralConfigOverrides struct {
 	P2PPeerID                                 *p2pkey.PeerID
 	SecretGenerator                           config.SecretGenerator
 	TriggerFallbackDBPollInterval             *time.Duration
+
+	FeatureOffchainReporting2 bool
+
+	OCR2BootstrapCheckInterval time.Duration
+	OCR2ObservationGracePeriod time.Duration
+	OCR2ObservationTimeout     time.Duration
+	OCR2P2PListenPort          uint16
+	OCR2P2PPeerID              p2pkey.PeerID
+	OCR2P2PPeerIDError         error
+	OCR2P2PV2AnnounceAddresses []string
+	OCR2P2PV2Bootstrappers     []commontypes.BootstrapperLocator
+	OCR2P2PV2ListenAddresses   []string
 }
 
 func (o *GeneralConfigOverrides) SetTriggerFallbackDBPollInterval(d time.Duration) {
@@ -194,6 +207,75 @@ func (c *TestGeneralConfig) P2PPeerID(override *p2pkey.PeerID) (p2pkey.PeerID, e
 	defaultP2PPeerID, err := p2ppeer.Decode(DefaultPeerID)
 	require.NoError(c.t, err)
 	return p2pkey.PeerID(defaultP2PPeerID), nil
+}
+
+func (c *TestGeneralConfig) OCR2P2PListenPort() uint16 {
+	if c.Overrides.OCR2P2PListenPort != 0 {
+		return c.Overrides.OCR2P2PListenPort
+	}
+	return 12345
+}
+
+func (c *TestGeneralConfig) OCR2ObservationTimeout(time.Duration) time.Duration {
+	if c.Overrides.OCR2ObservationTimeout != 0 {
+		return c.Overrides.OCR2ObservationTimeout
+	}
+	return 20 * time.Second
+}
+
+func (c *TestGeneralConfig) OCR2BootstrapCheckInterval() time.Duration {
+	if c.Overrides.OCR2BootstrapCheckInterval != 0 {
+		return c.Overrides.OCR2BootstrapCheckInterval
+	}
+	return 12 * time.Second
+}
+
+func (c *TestGeneralConfig) OCR2ObservationGracePeriod() time.Duration {
+	if c.Overrides.OCR2ObservationGracePeriod != 0 {
+		return c.Overrides.OCR2ObservationGracePeriod
+	}
+	return 1 * time.Second
+}
+
+func (c *TestGeneralConfig) OCR2P2PV2DeltaReconcile() time.Duration {
+	return 500 * time.Millisecond
+}
+
+func (c *TestGeneralConfig) OCR2P2PV2DeltaDial() time.Duration {
+	return 500 * time.Millisecond
+}
+
+func (c *TestGeneralConfig) OCR2P2PPeerID() (p2pkey.PeerID, error) {
+	if c.Overrides.OCR2P2PPeerIDError != nil {
+		return "", c.Overrides.P2PPeerIDError
+	}
+	if c.Overrides.OCR2P2PPeerID != "" {
+		return c.Overrides.OCR2P2PPeerID, nil
+	}
+	defaultP2PPeerID, err := p2ppeer.Decode(DefaultPeerID)
+	require.NoError(c.t, err)
+	return p2pkey.PeerID(defaultP2PPeerID), nil
+}
+
+func (c *TestGeneralConfig) OCR2P2PV2ListenAddresses() []string {
+	if len(c.Overrides.OCR2P2PV2ListenAddresses) > 0 {
+		return c.Overrides.OCR2P2PV2ListenAddresses
+	}
+	panic("OCR2P2PV2ListenAddresses must be overridden")
+}
+
+func (c *TestGeneralConfig) OCR2P2PV2AnnounceAddresses() []string {
+	if len(c.Overrides.OCR2P2PV2AnnounceAddresses) > 0 {
+		return c.Overrides.OCR2P2PV2AnnounceAddresses
+	}
+	panic("OCR2P2PV2AnnounceAddresses must be overridden")
+}
+
+func (c *TestGeneralConfig) OCR2P2PV2Bootstrappers() []commontypes.BootstrapperLocator {
+	if len(c.Overrides.OCR2P2PV2Bootstrappers) > 0 {
+		return c.Overrides.OCR2P2PV2Bootstrappers
+	}
+	return []commontypes.BootstrapperLocator{}
 }
 
 func (c *TestGeneralConfig) DatabaseTimeout() models.Duration {
