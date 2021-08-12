@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/smartcontractkit/chainlink/core/assets"
+	"github.com/smartcontractkit/chainlink/core/chains/evm"
 	"github.com/smartcontractkit/chainlink/core/store/config"
 	null "gopkg.in/guregu/null.v4"
 )
 
-var _ config.EVMConfig = &TestEVMConfig{}
+var _ evm.ChainScopedConfig = &TestEVMConfig{}
 
 var (
 	MinimumContractPayment = assets.NewLink(100)
@@ -44,15 +45,15 @@ type EVMConfigOverrides struct {
 
 // TestEVMConfig defaults to whatever config.NewEVMConfig()
 // gives but allows overriding certain methods
-type TestEVMConfig struct {
-	config.EVMConfig
+type TestChainScopedConfig struct {
+	evm.ChainScopedConfig
 	Overrides     EVMConfigOverrides
 	GeneralConfig *TestGeneralConfig
 	t             testing.TB
 }
 
-func NewTestEVMConfig(t testing.TB, generalcfg *TestGeneralConfig) *TestEVMConfig {
-	evmcfg := config.NewEVMConfig(generalcfg)
+func NewTestEVMConfig(t testing.TB, generalcfg *TestGeneralConfig) *TestChainScopedConfig {
+	evmcfg := evm.NewChainScopedConfig(nil, generalcfg, generalcfg.DefaultChainID())
 	return &TestEVMConfig{
 		evmcfg,
 		EVMConfigOverrides{},

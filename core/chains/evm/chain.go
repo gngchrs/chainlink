@@ -63,8 +63,8 @@ func newChain(dbchain types.Chain, globalLogger *logger.Logger, db *gorm.DB, gcf
 	if gcfg.EthereumDisabled() {
 		return nil, errors.Errorf("cannot create new chain with ID %d, ethereum is disabled", dbchain.ID)
 	}
+	cfg := NewChainScopedConfig(db, gcfg, dbchain.ID.ToInt())
 	// TODO: Pass this logger into all subservices
-	cfg := newChainScopedConfig(db, gcfg, dbchain.ID.ToInt())
 	l := globalLogger.With("chainID", dbchain.ID.String())
 	serviceLogLevels, err := globalLogger.GetServiceLogLevels()
 	if err != nil {

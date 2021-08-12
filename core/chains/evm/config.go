@@ -73,7 +73,7 @@ type chainScopedConfig struct {
 	id         *big.Int
 }
 
-func newChainScopedConfig(db *gorm.DB, gcfg config.GeneralConfig, chainID *big.Int) ChainScopedConfig {
+func NewChainScopedConfig(db *gorm.DB, gcfg config.GeneralConfig, chainID *big.Int) ChainScopedConfig {
 	orm := &chainScopedConfigORM{chainID, db}
 	defaultSet, exists := chainSpecificConfigDefaultSets[chainID.Int64()]
 	if !exists {
