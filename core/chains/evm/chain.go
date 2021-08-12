@@ -209,6 +209,9 @@ func newEthClientFromChain(chain types.Chain) (eth.Client, error) {
 			}
 			sendonlys = append(sendonlys, sendonly)
 		} else {
+			if primary != nil {
+				return nil, errors.Errorf("Got multiple primaries for chain %d, only one primary is currently supported", chain.ID.ToInt())
+			}
 			var err error
 			primary, err = newPrimary(node)
 			if err != nil {
