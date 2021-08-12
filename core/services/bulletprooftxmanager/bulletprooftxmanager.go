@@ -302,7 +302,7 @@ func (b *BulletproofTxManager) GetGasEstimator() gas.Estimator {
 }
 
 // SendEther creates a transaction that transfers the given value of ether
-func SendEther(db *gorm.DB, from, to common.Address, value assets.Eth, gasLimit uint64) (etx EthTx, err error) {
+func SendEther(db *gorm.DB, chainID *big.Int, from, to common.Address, value assets.Eth, gasLimit uint64) (etx EthTx, err error) {
 	if to == utils.ZeroAddress {
 		return etx, errors.New("cannot send ether to zero address")
 	}
@@ -313,6 +313,7 @@ func SendEther(db *gorm.DB, from, to common.Address, value assets.Eth, gasLimit 
 		Value:          value,
 		GasLimit:       gasLimit,
 		State:          EthTxUnstarted,
+		EVMChainID:     *utils.NewBig(chainID),
 	}
 	err = db.Create(&etx).Error
 	return etx, err

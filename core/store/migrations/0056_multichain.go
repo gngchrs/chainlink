@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const up55 = `
+const up56 = `
 CREATE TABLE evm_chains (
 	id numeric(78,0) PRIMARY KEY,
 	cfg jsonb NOT NULL DEFAULT '{}',
@@ -18,7 +18,7 @@ CREATE TABLE evm_chains (
 
 CREATE TABLE nodes (
 	id serial PRIMARY KEY,
-	name varchar(255) NOT NULL CHECK (name != ''),
+	name varchar(256) NOT NULL CHECK (name != ''),
 	evm_chain_id numeric(78,0) NOT NULL REFERENCES evm_chains (id),
 	ws_url text CHECK (ws_url != ''),
 	http_url text CHECK (http_url != ''),
@@ -65,7 +65,7 @@ ALTER TABLE log_broadcasts ALTER COLUMN evm_chain_id SET NOT NULL;
 ALTER TABLE heads ALTER COLUMN evm_chain_id SET NOT NULL;
 `
 
-const down55 = `
+const down56 = `
 ALTER TABLE heads DROP COLUMN evm_chain_id;
 ALTER TABLE log_broadcasts DROP COLUMN evm_chain_id;
 ALTER TABLE eth_txes DROP COLUMN evm_chain_id;
@@ -85,7 +85,7 @@ DROP TABLE evm_chains;
 
 func init() {
 	Migrations = append(Migrations, &Migration{
-		ID: "0055_multichain",
+		ID: "0056_multichain",
 		Migrate: func(db *gorm.DB) error {
 			chainIDStr := os.Getenv("ETH_CHAIN_ID")
 			if chainIDStr == "" {
@@ -96,11 +96,11 @@ func init() {
 				panic(fmt.Sprintf("ETH_CHAIN_ID was invalid, expected a number, got: %s", chainIDStr))
 			}
 
-			sql := fmt.Sprintf(up55, chainID.String())
+			sql := fmt.Sprintf(up56, chainID.String())
 			return db.Exec(sql).Error
 		},
 		Rollback: func(db *gorm.DB) error {
-			return db.Exec(down55).Error
+			return db.Exec(down56).Error
 		},
 	})
 }

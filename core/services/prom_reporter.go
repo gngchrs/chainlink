@@ -46,15 +46,15 @@ var (
 	promUnconfirmedTransactions = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "unconfirmed_transactions",
 		Help: "Number of currently unconfirmed transactions",
-	}, []string{"chainID"})
+	}, []string{"evmChainID"})
 	promMaxUnconfirmedAge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "max_unconfirmed_tx_age",
 		Help: "The length of time the oldest unconfirmed transaction has been in that state (in seconds). Will be 0 if there are no unconfirmed transactions.",
-	}, []string{"chainID"})
+	}, []string{"evmChainID"})
 	promMaxUnconfirmedBlocks = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "max_unconfirmed_blocks",
 		Help: "The max number of blocks any currently unconfirmed transaction has been unconfirmed for",
-	}, []string{"chainID"})
+	}, []string{"evmChainID"})
 	promPipelineRunsQueued = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "pipeline_runs_queued",
 		Help: "The total number of pipeline runs that are awaiting execution",
@@ -65,16 +65,16 @@ var (
 	})
 )
 
-func (defaultBackend) SetUnconfirmedTransactions(chainID *big.Int, n int64) {
-	promUnconfirmedTransactions.WithLabelValues("chainID", chainID.String()).Set(float64(n))
+func (defaultBackend) SetUnconfirmedTransactions(evmChainID *big.Int, n int64) {
+	promUnconfirmedTransactions.WithLabelValues("evmChainID", evmChainID.String()).Set(float64(n))
 }
 
-func (defaultBackend) SetMaxUnconfirmedAge(chainID *big.Int, s float64) {
-	promMaxUnconfirmedAge.WithLabelValues("chainID", chainID.String()).Set(s)
+func (defaultBackend) SetMaxUnconfirmedAge(evmChainID *big.Int, s float64) {
+	promMaxUnconfirmedAge.WithLabelValues("evmChainID", evmChainID.String()).Set(s)
 }
 
-func (defaultBackend) SetMaxUnconfirmedBlocks(chainID *big.Int, n int64) {
-	promMaxUnconfirmedBlocks.WithLabelValues("chainID", chainID.String()).Set(float64(n))
+func (defaultBackend) SetMaxUnconfirmedBlocks(evmChainID *big.Int, n int64) {
+	promMaxUnconfirmedBlocks.WithLabelValues("evmChainID", evmChainID.String()).Set(float64(n))
 }
 
 func (defaultBackend) SetPipelineRunsQueued(n int) {
@@ -152,10 +152,10 @@ func (pr *promReporter) eventLoop() {
 }
 
 func (pr *promReporter) reportHeadMetrics(ctx context.Context, head models.Head) {
-	chainID := head.EVMChainID.ToInt()
+	evmChainID := head.EVMChainID.ToInt()
 	err := multierr.Combine(
-		errors.Wrap(pr.reportPendingEthTxes(ctx, chainID), "reportPendingEthTxes failed"),
-		errors.Wrap(pr.reportMaxUnconfirmedAge(ctx, chainID), "reportMaxUnconfirmedAge failed"),
+		errors.Wrap(pr.reportPendingEthTxes(ctx, evmChainID), "reportPendingEthTxes failed"),
+		errors.Wrap(pr.reportMaxUnconfirmedAge(ctx, evmChainID), "reportMaxUnconfirmedAge failed"),
 		errors.Wrap(pr.reportMaxUnconfirmedBlocks(ctx, head), "reportMaxUnconfirmedBlocks failed"),
 	)
 
@@ -164,8 +164,8 @@ func (pr *promReporter) reportHeadMetrics(ctx context.Context, head models.Head)
 	}
 }
 
-func (pr *promReporter) reportPendingEthTxes(ctx context.Context, chainID *big.Int) (err error) {
-	rows, err := pr.db.QueryContext(ctx, `SELECT count(*) FROM eth_txes WHERE state = 'unconfirmed' AND evm_chain_id = ?`, chainID.String())
+func (pr *promReporter) reportPendingEthTxes(ctx context.Context, evmChainID *big.Int) (err error) {
+	rows, err := pr.db.QueryContext(ctx, `SELECT count(*) FROM eth_txes WHERE state = 'unconfirmed' AND evm_chain_id = ?`, evmChainID.String())
 	if err != nil {
 		return errors.Wrap(err, "failed to query for unconfirmed eth_tx count")
 	}
@@ -180,13 +180,13 @@ func (pr *promReporter) reportPendingEthTxes(ctx context.Context, chainID *big.I
 			return errors.Wrap(err, "unexpected error scanning row")
 		}
 	}
-	pr.backend.SetUnconfirmedTransactions(chainID, unconfirmed)
+	pr.backend.SetUnconfirmedTransactions(evmChainID, unconfirmed)
 	return nil
 }
 
-func (pr *promReporter) reportMaxUnconfirmedAge(ctx context.Context, chainID *big.Int) (err error) {
+func (pr *promReporter) reportMaxUnconfirmedAge(ctx context.Context, evmChainID *big.Int) (err error) {
 	now := time.Now()
-	rows, err := pr.db.QueryContext(ctx, `SELECT min(broadcast_at) FROM eth_txes WHERE state = 'unconfirmed' AND evm_chain_id = ?`, chainID.String())
+	rows, err := pr.db.QueryContext(ctx, `SELECT min(broadcast_at) FROM eth_txes WHERE state = 'unconfirmed' AND evm_chain_id = ?`, evmChainID.String())
 	if err != nil {
 		return errors.Wrap(err, "failed to query for unconfirmed eth_tx count")
 	}
@@ -206,7 +206,7 @@ func (pr *promReporter) reportMaxUnconfirmedAge(ctx context.Context, chainID *bi
 		nanos := now.Sub(broadcastAt.ValueOrZero())
 		seconds = float64(nanos) / 1000000000
 	}
-	pr.backend.SetMaxUnconfirmedAge(chainID, seconds)
+	pr.backend.SetMaxUnconfirmedAge(evmChainID, seconds)
 	return nil
 }
 

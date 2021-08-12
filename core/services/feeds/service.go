@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"github.com/smartcontractkit/chainlink/core/chains/evm"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	pb "github.com/smartcontractkit/chainlink/core/services/feeds/proto"
 	"github.com/smartcontractkit/chainlink/core/services/fluxmonitorv2"
@@ -45,14 +46,15 @@ type Service interface {
 type service struct {
 	utils.StartStopOnce
 
-	orm         ORM
-	verORM      versioning.ORM
-	csaKeyStore keystore.CSAKeystoreInterface
-	ethKeyStore keystore.EthKeyStoreInterface
-	jobSpawner  job.Spawner
-	cfg         Config
-	txm         postgres.TransactionManager
-	connMgr     ConnectionsManager
+	orm             ORM
+	verORM          versioning.ORM
+	csaKeyStore     keystore.CSAKeystoreInterface
+	ethKeyStore     keystore.EthKeyStoreInterface
+	jobSpawner      job.Spawner
+	cfg             Config
+	txm             postgres.TransactionManager
+	connMgr         ConnectionsManager
+	chainCollection evm.ChainCollection
 }
 
 // NewService constructs a new feeds service
@@ -64,16 +66,18 @@ func NewService(
 	csaKeyStore keystore.CSAKeystoreInterface,
 	ethKeyStore keystore.EthKeyStoreInterface,
 	cfg Config,
+	chainCollection evm.ChainCollection,
 ) *service {
 	svc := &service{
-		orm:         orm,
-		verORM:      verORM,
-		txm:         txm,
-		jobSpawner:  jobSpawner,
-		csaKeyStore: csaKeyStore,
-		ethKeyStore: ethKeyStore,
-		cfg:         cfg,
-		connMgr:     newConnectionsManager(),
+		orm:             orm,
+		verORM:          verORM,
+		txm:             txm,
+		jobSpawner:      jobSpawner,
+		csaKeyStore:     csaKeyStore,
+		ethKeyStore:     ethKeyStore,
+		cfg:             cfg,
+		connMgr:         newConnectionsManager(),
+		chainCollection: chainCollection,
 	}
 
 	return svc
@@ -456,7 +460,7 @@ func (s *service) generateJob(spec string) (*job.Job, error) {
 	var js job.Job
 	switch jobType {
 	case job.OffchainReporting:
-		js, err = offchainreporting.ValidatedOracleSpecToml(s.cfg, spec)
+		js, err = offchainreporting.ValidatedOracleSpecToml(s.chainCollection, spec)
 		if !s.cfg.Dev() && !s.cfg.FeatureOffchainReporting() {
 			return nil, ErrOCRDisabled
 		}

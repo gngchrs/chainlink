@@ -121,23 +121,25 @@ type ChainlinkApplication struct {
 // present at the configured root directory (default: ~/.chainlink),
 // the logger at the same directory and returns the Application to
 // be used by the node.
-// TODO: Pass the DB object in here, see: https://app.clubhouse.io/chainlinklabs/story/12980/remove-store-object-entirely
+// TODO: Inject more dependencies here to save booting up useless stuff in tests
 func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLocker) (Application, error) {
 	var subservices []service.Service
 
+	// TODO: Remove store entirely and pass db into NewApplication, see:
+	// https://app.clubhouse.io/chainlinklabs/story/12980/remove-store-object-entirely
 	shutdownSignal := gracefulpanic.NewSignal()
 	store, err := strpkg.NewStore(cfg, advisoryLocker, shutdownSignal)
 	if err != nil {
 		return nil, err
 	}
-	gormTxm := postgres.NewGormTransactionManager(store.DB)
+	db := store.DB
 
-	setupConfig(cfg, store.DB)
+	setupConfig(cfg, db)
 
 	healthChecker := health.NewChecker()
 
 	scryptParams := utils.GetScryptParams(cfg)
-	keyStore := keystore.New(store.DB, scryptParams)
+	keyStore := keystore.New(db, scryptParams)
 
 	telemetryIngressClient := synchronization.TelemetryIngressClient(&synchronization.NoopTelemetryIngressClient{})
 	explorerClient := synchronization.ExplorerClient(&synchronization.NoopExplorerClient{})
@@ -166,12 +168,12 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 
 	// Init service loggers
 	globalLogger := cfg.CreateProductionLogger()
-	globalLogger.SetDB(store.DB)
+	globalLogger.SetDB(db)
 
 	eventBroadcaster := postgres.NewEventBroadcaster(cfg.DatabaseURL(), cfg.DatabaseListenerMinReconnectInterval(), cfg.DatabaseListenerMaxReconnectDuration())
 	subservices = append(subservices, eventBroadcaster)
 
-	if err := evm.ClobberNodesFromEnv(store.DB, cfg); err != nil {
+	if err := evm.ClobberNodesFromEnv(db, cfg); err != nil {
 		logger.Fatal(err)
 	}
 
@@ -180,22 +182,22 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 	if cfg.EthereumDisabled() {
 		chainCollection = evm.EmptyChainCollection()
 	} else {
-		chainCollection, err := evm.LoadChainCollection(globalLogger, store.DB, cfg, keyStore.Eth(), advisoryLocker, eventBroadcaster)
+		chainCollection, err := evm.LoadChainCollection(globalLogger, db, cfg, keyStore.Eth(), advisoryLocker, eventBroadcaster)
 		if err != nil {
 			logger.Fatal(err)
 		}
 		subservices = append(subservices, chainCollection)
 	}
-	promReporter := services.NewPromReporter(store.MustSQLDB())
+	promReporter := services.NewPromReporter(postgres.MustSQLDB(db))
 	subservices = append(subservices, promReporter)
 	for _, chain := range chainCollection.Chains() {
 		chain.HeadBroadcaster().Subscribe(promReporter)
 	}
 
 	var (
-		pipelineORM    = pipeline.NewORM(store.DB)
+		pipelineORM    = pipeline.NewORM(db)
 		pipelineRunner = pipeline.NewRunner(pipelineORM, cfg, chainCollection, keyStore.Eth(), keyStore.VRF())
-		jobORM         = job.NewORM(store.DB, chainCollection, pipelineORM, eventBroadcaster, advisoryLocker)
+		jobORM         = job.NewORM(db, chainCollection, pipelineORM, eventBroadcaster, advisoryLocker)
 	)
 
 	var (
@@ -203,16 +205,16 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 			job.DirectRequest: directrequest.NewDelegate(
 				pipelineRunner,
 				pipelineORM,
-				store.DB,
+				db,
 				chainCollection),
 			job.Keeper: keeper.NewDelegate(
-				store.DB,
+				db,
 				jobORM,
 				pipelineRunner,
 				cfg,
 				chainCollection),
 			job.VRF: vrf.NewDelegate(
-				store.DB,
+				db,
 				keyStore,
 				pipelineRunner,
 				pipelineORM,
@@ -227,17 +229,17 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 			jobORM,
 			pipelineORM,
 			pipelineRunner,
-			store.DB,
+			db,
 			chainCollection,
 		)
 	}
 
 	if (cfg.Dev() && cfg.P2PListenPort() > 0) || cfg.FeatureOffchainReporting() {
 		logger.Debug("Off-chain reporting enabled")
-		concretePW := offchainreporting.NewSingletonPeerWrapper(keyStore.OCR(), cfg, store.DB)
+		concretePW := offchainreporting.NewSingletonPeerWrapper(keyStore.OCR(), cfg, db)
 		subservices = append(subservices, concretePW)
 		delegates[job.OffchainReporting] = offchainreporting.NewDelegate(
-			store.DB,
+			db,
 			jobORM,
 			keyStore.OCR(),
 			pipelineRunner,
@@ -249,7 +251,7 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 		logger.Debug("Off-chain reporting disabled")
 	}
 
-	externalInitiatorManager := webhook.NewExternalInitiatorManager(store.DB, utils.UnrestrictedClient)
+	externalInitiatorManager := webhook.NewExternalInitiatorManager(db, utils.UnrestrictedClient)
 
 	var webhookJobRunner webhook.JobRunner
 	if cfg.Dev() || cfg.FeatureWebhookV2() {
@@ -262,12 +264,13 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 		delegates[job.Cron] = cron.NewDelegate(pipelineRunner)
 	}
 
-	jobSpawner := job.NewSpawner(jobORM, store.Config, delegates, gormTxm)
+	gormTxm := postgres.NewGormTransactionManager(db)
+	jobSpawner := job.NewSpawner(jobORM, cfg, delegates, gormTxm)
 	subservices = append(subservices, jobSpawner, pipelineRunner)
 
-	feedsORM := feeds.NewORM(store.DB)
+	feedsORM := feeds.NewORM(db)
 	verORM := versioning.NewORM(postgres.WrapDbWithSqlx(
-		postgres.MustSQLDB(store.DB)),
+		postgres.MustSQLDB(db)),
 	)
 
 	// TODO: Make feeds manager compatible with multiple chains
@@ -276,10 +279,11 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 	if err != nil {
 		logger.Fatal(err)
 	}
-	feedsService := feeds.NewService(feedsORM, verORM, gormTxm, jobSpawner, keyStore.CSA(), keyStore.Eth(), chain.Config())
+	feedsService := feeds.NewService(feedsORM, verORM, gormTxm, jobSpawner, keyStore.CSA(), keyStore.Eth(), chain.Config(), chainCollection)
 
 	app := &ChainlinkApplication{
 		ChainCollection:          chainCollection,
+		Store:                    store,
 		EventBroadcaster:         eventBroadcaster,
 		jobORM:                   jobORM,
 		jobSpawner:               jobSpawner,
@@ -288,9 +292,8 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 		FeedsService:             feedsService,
 		Config:                   cfg,
 		webhookJobRunner:         webhookJobRunner,
-		Store:                    store,
 		KeyStore:                 keyStore,
-		SessionReaper:            services.NewSessionReaper(store.DB, cfg),
+		SessionReaper:            services.NewSessionReaper(db, cfg),
 		Exiter:                   os.Exit,
 		ExternalInitiatorManager: externalInitiatorManager,
 		shutdownSignal:           shutdownSignal,
@@ -443,11 +446,6 @@ func (app *ChainlinkApplication) stop() error {
 	return merr
 }
 
-// GetStore returns the pointer to the store for the ChainlinkApplication.
-func (app *ChainlinkApplication) GetStore() *strpkg.Store {
-	return app.Store
-}
-
 func (app *ChainlinkApplication) GetEthClient() eth.Client {
 	return app.ethClient
 }
@@ -598,4 +596,8 @@ func (app *ChainlinkApplication) ReplayFromBlock(chainID *big.Int, number uint64
 
 func (app *ChainlinkApplication) GetChainCollection() evm.ChainCollection {
 	return app.ChainCollection
+}
+
+func (app *ChainlinkApplication) GetStore() *strpkg.Store {
+	return app.Store
 }

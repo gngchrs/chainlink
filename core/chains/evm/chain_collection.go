@@ -33,6 +33,7 @@ func (cll *chainCollection) Start() (err error) {
 	for _, c := range cll.Chains() {
 		err = multierr.Combine(err, c.Start())
 	}
+	logger.Infof("ChainCollection: Started %d chains, default chain ID is %d", len(cll.chains), cll.defaultID)
 	return
 }
 func (cll *chainCollection) Close() (err error) {
