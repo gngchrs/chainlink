@@ -85,6 +85,11 @@ func (cll *chainCollection) ChainCount() int {
 }
 
 func LoadChainCollection(globalLogger *logger.Logger, db *gorm.DB, gcfg config.GeneralConfig, keyStore keystore.EthKeyStoreInterface, advisoryLocker postgres.AdvisoryLocker, eventBroadcaster postgres.EventBroadcaster) (ChainCollection, error) {
+	// TODO: Rename to something like EVMDisabled?
+	if gcfg.EthereumDisabled() {
+		logger.Info("ChainCollection: Ethereum disabled, no chains will be loaded")
+		return &chainCollection{}, nil
+	}
 	var dbchains []types.Chain
 	err := db.Preload("Nodes").Find(&dbchains).Error
 	if err != nil {
@@ -100,8 +105,4 @@ func LoadChainCollection(globalLogger *logger.Logger, db *gorm.DB, gcfg config.G
 		cll.chains[chain.ID().String()] = chain
 	}
 	return cll, err
-}
-
-func EmptyChainCollection() ChainCollection {
-	return &chainCollection{}
 }

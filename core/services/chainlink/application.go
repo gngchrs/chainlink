@@ -177,17 +177,11 @@ func NewApplication(cfg config.GeneralConfig, advisoryLocker postgres.AdvisoryLo
 		logger.Fatal(err)
 	}
 
-	var chainCollection evm.ChainCollection
-	// TODO: Rename to something like EVMDisabled?
-	if cfg.EthereumDisabled() {
-		chainCollection = evm.EmptyChainCollection()
-	} else {
-		chainCollection, err := evm.LoadChainCollection(globalLogger, db, cfg, keyStore.Eth(), advisoryLocker, eventBroadcaster)
-		if err != nil {
-			logger.Fatal(err)
-		}
-		subservices = append(subservices, chainCollection)
+	chainCollection, err := evm.LoadChainCollection(globalLogger, db, cfg, keyStore.Eth(), advisoryLocker, eventBroadcaster)
+	if err != nil {
+		logger.Fatal(err)
 	}
+	subservices = append(subservices, chainCollection)
 	promReporter := services.NewPromReporter(postgres.MustSQLDB(db))
 	subservices = append(subservices, promReporter)
 	for _, chain := range chainCollection.Chains() {

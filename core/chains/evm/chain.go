@@ -56,9 +56,13 @@ type chain struct {
 	headTracker     httypes.Tracker
 	logBroadcaster  log.Broadcaster
 	balanceMonitor  services.BalanceMonitor
+	keyStore        keystore.EthKeyStoreInterface
 }
 
 func newChain(dbchain types.Chain, globalLogger *logger.Logger, db *gorm.DB, gcfg config.GeneralConfig, keyStore keystore.EthKeyStoreInterface, advisoryLocker postgres.AdvisoryLocker, eventBroadcaster postgres.EventBroadcaster) (*chain, error) {
+	if gcfg.EthereumDisabled() {
+		return nil, errors.Errorf("cannot create new chain with ID %d, ethereum is disabled", dbchain.ID)
+	}
 	// TODO: Pass this logger into all subservices
 	cfg := newChainScopedConfig(db, gcfg, dbchain.ID.ToInt())
 	l := globalLogger.With("chainID", dbchain.ID.String())
@@ -110,6 +114,7 @@ func newChain(dbchain types.Chain, globalLogger *logger.Logger, db *gorm.DB, gcf
 		headTracker,
 		logBroadcaster,
 		balanceMonitor,
+		keyStore,
 	}
 	return &c, nil
 }
@@ -139,6 +144,26 @@ func (c *chain) Start() error {
 		// Log Broadcaster fully starts after all initial Register calls are done from other starting services
 		// to make sure the initial backfill covers those subscribers.
 		c.logBroadcaster.DependentReady()
+
+		if c.cfg.Dev() {
+			fundingKeys, err := c.keyStore.FundingKeys()
+			if err != nil {
+				c.logger.Errorw("Chain: failed to get funding keys")
+			} else {
+				for _, key := range fundingKeys {
+					balance, ethErr := c.client.BalanceAt(context.TODO(), key.Address.Address(), nil)
+					if ethErr != nil {
+						c.logger.Errorw("Chain: failed to fetch balance for funding key", "address", key.Address, "err", ethErr)
+						continue
+					}
+					if balance.Cmp(big.NewInt(0)) == 0 {
+						logger.Infow("The backup funding address does not have sufficient funds", "evmChainID", c.ID(), "address", key.Address.Hex(), "balance", balance)
+					} else {
+						logger.Infow("Funding address ready", "evmChainID", c.ID(), "address", key.Address.Hex(), "current-balance", balance)
+					}
+				}
+			}
+		}
 
 		return nil
 	})
